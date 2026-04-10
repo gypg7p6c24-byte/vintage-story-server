@@ -1,24 +1,24 @@
 # Vintage Story Server Docker
 
-Image Docker générique pour exécuter un serveur Vintage Story sur Linux `amd64`, avec téléchargement de l’archive officielle au runtime, bootstrap automatique du `serverconfig.json` et publication possible sur GitHub Container Registry et Docker Hub.
+Generic Docker image for running a Vintage Story dedicated server on Linux `amd64`, with official server archive download at runtime, automatic `serverconfig.json` bootstrapping, and publishing support for both GitHub Container Registry and Docker Hub.
 
-## Choix techniques
+## Design choices
 
-- Base Linux: `mcr.microsoft.com/dotnet/runtime:8.0-bookworm-slim`, alignée avec l’exigence officielle `.NET Runtime 8.0`.
-- Cible `amd64` uniquement: l’archive officielle stable vérifiée est `vs_server_linux-x64_1.21.6.tar.gz`. Le support ARM64 reste documenté comme expérimental côté officiel.
-- Aucun binaire du jeu n’est embarqué dans l’image publiée: l’image ne transporte que le lanceur, puis télécharge l’archive serveur officielle au premier démarrage. Cette approche garde le dépôt et l’image partageables sans republier les fichiers du jeu.
-- Le conteneur exécute le serveur au premier plan. Le script `server.sh` fourni par le jeu repose sur `screen`, `pgrep` et un usage machine classique, pas sur un modèle conteneur natif.
-- Le processus serveur ne tourne pas en root. L’entrypoint démarre en root uniquement pour aligner `PUID` et `PGID`, préparer les permissions, puis relance immédiatement le serveur sous l’utilisateur `vintagestory`.
-- Aucune mise à jour automatique du binaire serveur n’est effectuée. Une installation existante reste figée tant que `VS_FORCE_REINSTALL=true` n’est pas demandé explicitement.
-- La base runtime est paramétrable via `DOTNET_RUNTIME_TAG`. Valeur actuelle: `8.0-bookworm-slim`, adaptée à `1.21.6`.
+- Base image: `mcr.microsoft.com/dotnet/runtime:8.0-bookworm-slim`, matching the official `.NET Runtime 8.0` requirement for `1.21.6`.
+- Target architecture: `amd64` only. The verified stable Linux server archive is `vs_server_linux-x64_1.21.6.tar.gz`. ARM64 remains officially documented as experimental.
+- No game binaries are embedded in the published image. The image only contains the launcher logic and downloads the official Vintage Story server archive on first start.
+- The container runs the server in the foreground. The bundled upstream `server.sh` script is designed for a traditional host setup with `screen` and `pgrep`, not for a container-native runtime.
+- The server process does not run as root. The entrypoint starts as root only long enough to align `PUID` and `PGID`, create persistent directories, fix permissions, and immediately re-exec as the dedicated `vintagestory` user.
+- No automatic server binary updates are performed. Once a server version is installed, it remains pinned until `VS_FORCE_REINSTALL=true` is explicitly set.
+- The base .NET runtime is configurable through `DOTNET_RUNTIME_TAG`. The current default is `8.0-bookworm-slim`.
 
-## Sources officielles utilisées
+## Official sources
 
-- Guide serveur dédié Linux: <https://wiki.vintagestory.at/Guide:Dedicated_Server#Dedicated_server_on_Linux>
-- Configuration serveur: <https://wiki.vintagestory.at/index.php/Server_Config/en>
-- Conditions d’utilisation du service: <https://www.vintagestory.at/tos.html>
+- Dedicated server guide for Linux: <https://wiki.vintagestory.at/Guide:Dedicated_Server#Dedicated_server_on_Linux>
+- Server configuration reference: <https://wiki.vintagestory.at/index.php/Server_Config/en>
+- Terms of service: <https://www.vintagestory.at/tos.html>
 
-## Arborescence
+## Persistent layout
 
 ```text
 storage/
@@ -30,116 +30,141 @@ storage/
 └── server/
 ```
 
-- `storage/server`: fichiers serveur extraits depuis l’archive officielle.
-- `storage/data`: monde, logs, mods, sauvegardes et configuration persistants.
+- `storage/server`: extracted official server files
+- `storage/data`: world data, logs, mods, saves, and runtime configuration
 
-## Démarrage rapide
+## Local build and run
 
-1. Ajuster les variables du projet si nécessaire, en priorité `VS_DOWNLOAD_URL` ou `VS_VERSION`.
-2. Construire et lancer:
+1. Adjust the environment variables if needed, especially `VS_DOWNLOAD_URL` or `VS_VERSION`.
+2. Build and start the container:
 
 ```bash
 docker compose up -d --build
 ```
 
-3. Suivre les logs:
+3. Follow the logs:
 
 ```bash
 docker compose logs -f
 ```
 
-4. Ouvrir la console serveur:
+4. Attach to the server console:
 
 ```bash
 docker attach vintagestory-server
 ```
 
-5. Détacher la console sans arrêter le conteneur:
+5. Detach without stopping the container:
 
 ```text
-Ctrl-p puis Ctrl-q
+Ctrl-p then Ctrl-q
 ```
 
-## Déploiement depuis Docker Hub
+## Docker Hub deployment example
 
-Pour un serveur distant qui ne doit pas reconstruire l’image localement:
+For a remote server that should only pull a published image and never build locally, use a compose file like this:
 
-1. Copier `.env.dockerhub.example` vers `.env`
-2. Remplacer `VS_IMAGE` par votre image Docker Hub
-3. Lancer:
+```yaml
+services:
+  vintagestory:
+    image: your-dockerhub-namespace/vintage-story-server:latest
+    pull_policy: always
+    container_name: vintagestory-server
+    restart: unless-stopped
+    stop_grace_period: 45s
+    stdin_open: true
+    tty: true
+    environment:
+      PUID: 1000
+      PGID: 1000
+      VS_VERSION: 1.21.6
+      VS_FORCE_REINSTALL: "false"
+      VS_SERVER_NAME: Vintage Story Docker Server
+      VS_SERVER_LANGUAGE: en
+      VS_PORT: 42420
+      VS_MAX_CLIENTS: 8
+      VS_ADVERTISE_SERVER: "false"
+      VS_VERIFY_PLAYER_AUTH: "true"
+      VS_PASS_TIME_WHEN_EMPTY: "false"
+      VS_ALLOW_PVP: "true"
+      VS_ALLOW_FIRE_SPREAD: "true"
+      VS_ALLOW_FALLING_BLOCKS: "true"
+      VS_WORLD_NAME: Vintage Story Docker World
+    ports:
+      - "42420:42420/tcp"
+      - "42420:42420/udp"
+    volumes:
+      - ./storage:/var/vintagestory
+```
+
+Update flow on the remote host:
 
 ```bash
-docker compose -f compose.dockerhub.yaml up -d
+docker compose pull
+docker compose up -d
 ```
 
-Mise à jour de l’image publiée:
+## Main environment variables
 
-```bash
-docker compose -f compose.dockerhub.yaml pull
-docker compose -f compose.dockerhub.yaml up -d
-```
+- `VS_DOWNLOAD_URL`: preferred option. Paste the official Linux server download URL copied from the Vintage Story account page.
+- `VS_VERSION`: stable version used to build the CDN URL when `VS_DOWNLOAD_URL` is not set. If empty, the project falls back to `.vintagestory-version`.
+- `DOTNET_RUNTIME_TAG`: .NET runtime base image tag. Current default: `8.0-bookworm-slim`. Planned `1.22` validation target: `10.0-bookworm-slim`.
+- `VS_SERVER_NAME`: displayed server name.
+- `VS_SERVER_DESCRIPTION`: public server description.
+- `VS_SERVER_LANGUAGE`: server language.
+- `VS_PORT`: internal listening port and published Docker port.
+- `VS_MAX_CLIENTS`: maximum number of clients.
+- `VS_ADVERTISE_SERVER`: whether the server should be listed publicly.
+- `VS_VERIFY_PLAYER_AUTH`: whether Vintage Story account authentication is enforced.
+- `VS_PASSWORD`: optional server password.
+- `VS_WORLD_NAME`: world name when creating a fresh world.
+- `VS_SAVE_FILE`: absolute path to a specific `.vcdbs` file if you want to force a given save file.
+- `VS_FORCE_REINSTALL`: manual reinstallation guard. Default: `false`. When `false`, an already installed server binary is never replaced, even if `VS_VERSION` or `VS_DOWNLOAD_URL` changes.
 
-## Variables principales
+## Bootstrap behavior
 
-- `VS_DOWNLOAD_URL`: URL officielle copiée depuis la page de téléchargement de votre compte Vintage Story. Option recommandée.
-- `VS_VERSION`: version stable à utiliser si vous préférez reconstruire l’URL CDN automatiquement. Si vide, le projet utilise la version épinglée dans `.vintagestory-version`.
-- `DOTNET_RUNTIME_TAG`: tag de l’image .NET utilisée pour construire le conteneur. Valeur actuelle `8.0-bookworm-slim`. Pour une future image de validation `1.22`, la cible prévue est `10.0-bookworm-slim`.
-- `VS_SERVER_NAME`: nom affiché par le serveur.
-- `VS_SERVER_DESCRIPTION`: description publique.
-- `VS_SERVER_LANGUAGE`: langue des messages serveur.
-- `VS_PORT`: port d’écoute interne et publié par Compose.
-- `VS_MAX_CLIENTS`: nombre maximal de joueurs.
-- `VS_ADVERTISE_SERVER`: publication dans la liste publique.
-- `VS_VERIFY_PLAYER_AUTH`: vérification des comptes Vintage Story.
-- `VS_PASSWORD`: mot de passe d’accès.
-- `VS_WORLD_NAME`: nom du monde si un nouveau monde est créé.
-- `VS_SAVE_FILE`: chemin absolu vers un fichier `.vcdbs` si vous voulez forcer une sauvegarde spécifique.
-- `VS_FORCE_REINSTALL`: garde-fou de mise à jour. Par défaut `false`. Tant qu’il reste à `false`, un serveur déjà installé n’est jamais remplacé, même si `VS_VERSION` ou `VS_DOWNLOAD_URL` changent.
+On first startup, the container:
 
-## Bootstrap et configuration
+1. downloads the official server archive if needed
+2. extracts it into `storage/server`
+3. starts once to generate `storage/data/serverconfig.json`
+4. applies the current environment settings
+5. forces `ModPaths` to include both `Mods` and `storage/data/Mods`
+6. restarts the server in the foreground
 
-Au premier lancement, le conteneur:
+On an already initialized environment, the container strictly reuses the existing contents of `storage/server`. A changed version in the environment does nothing unless `VS_FORCE_REINSTALL=true` is explicitly set.
 
-1. télécharge l’archive officielle si nécessaire ;
-2. extrait le serveur dans `storage/server` ;
-3. démarre une première fois pour générer `storage/data/serverconfig.json` ;
-4. injecte les paramètres d’environnement courants ;
-5. force `ModPaths` à inclure `Mods` et `storage/data/Mods` ;
-6. redémarre ensuite le serveur au premier plan.
+## Version policy
 
-Sur un environnement déjà initialisé, le conteneur réutilise strictement les fichiers présents dans `storage/server`. Un changement de version demandé dans l’environnement n’écrase rien tant que `VS_FORCE_REINSTALL=true` n’est pas positionné.
+- Initial install order: `VS_DOWNLOAD_URL`, then `VS_VERSION`, then the pinned stable version in `.vintagestory-version`
+- Existing environment: never auto-upgrades the server binary
+- Intentional version switch: use a separate data directory or set `VS_FORCE_REINSTALL=true`
 
-## Politique de version
+## Preparing for 1.22
 
-- Installation initiale: prend `VS_DOWNLOAD_URL` si renseigné, sinon `VS_VERSION`, sinon la version stable épinglée dans `.vintagestory-version`.
-- Environnement existant: ne change jamais de binaire automatiquement.
-- Changement volontaire: passe par un autre volume `storage/` ou par `VS_FORCE_REINSTALL=true`.
+Official state observed on April 9, 2026:
 
-## Préparation 1.22
+- The latest stable release is still `1.21.6`, published on December 13, 2025.
+- The latest known unstable release is `1.22.0-rc.7`, published on April 3, 2026.
+- The official `v1.22` page states that Vintage Story requires `.NET 10` starting with `1.22`.
+- Direct inspection of the official archive `vs_server_linux-x64_1.22.0-pre.5.tar.gz` shows `tfm: net10.0` and `Microsoft.NETCore.App 10.0.0`.
+- The Linux server packaging remains broadly similar between `1.21.6` and `1.22.0-pre.5`: `x86_64` ELF executable, nearly identical archive structure, and no visible break in bundled native libraries.
 
-État officiel constaté au 9 avril 2026:
+Implications for this repository:
 
-- La dernière stable reste `1.21.6`, publiée le 13 décembre 2025.
-- La dernière instable connue est `1.22.0-rc.7`, publiée le 3 avril 2026.
-- La page officielle `v1.22` annonce qu’à partir de `1.22`, Vintage Story requiert `.NET 10`.
-- Vérification directe de l’archive officielle `vs_server_linux-x64_1.22.0-pre.5.tar.gz`: le serveur Linux cible `tfm: net10.0` et `Microsoft.NETCore.App 10.0.0`.
-- Le packaging serveur Linux reste globalement le même entre `1.21.6` et `1.22.0-pre.5`: exécutable ELF `x86_64`, structure d’archive quasi identique, pas de rupture visible dans les bibliothèques natives embarquées.
+- The default image remains on `.NET 8` as long as `VS_VERSION=1.21.6`.
+- A future `1.22` validation image should switch to `DOTNET_RUNTIME_TAG=10.0-bookworm-slim`.
+- Although the official announcement mentions "Desktop Runtime", the inspected Linux server archive references `Microsoft.NETCore.App`, so the planned server image target remains `mcr.microsoft.com/dotnet/runtime`, not a desktop runtime image.
+- The `1.22` pre-releases are explicitly discouraged for important save data. The correct upgrade strategy remains isolated validation, separate persistent data, and a manual cutover.
 
-Conséquences pour ce dépôt:
+Server-relevant changes mentioned in the official `1.22` notes:
 
-- L’image par défaut reste volontairement sur `.NET 8` tant que `VS_VERSION=1.21.6`.
-- Une future image de validation `1.22` devra utiliser `DOTNET_RUNTIME_TAG=10.0-bookworm-slim`.
-- Le texte officiel parle de "Desktop Runtime", mais l’archive serveur Linux inspectée référence `Microsoft.NETCore.App`. Pour l’image serveur Docker, la cible prévue reste donc l’image `mcr.microsoft.com/dotnet/runtime`, pas une image desktop spécifique.
-- Les préversions `1.22` sont explicitement déconseillées sur des sauvegardes importantes. La stratégie correcte reste donc celle déjà retenue ici: environnement séparé, volume de données séparé, validation manuelle, puis bascule contrôlée.
+- `1.22.0-pre.4`: reduced CPU cost for chunk unpacking, packet creation, and related work, mainly affecting multiplayer servers
+- `1.22.0-pre.4`: lag spike fixes around crafting and handbook usage
+- `1.22.0-pre.5`: fix for duplicated masterserver requests when public server advertising is enabled
+- `1.22.0-rc.7`: extra logging when the server cannot save, and autosave retry changed to `2000ms` instead of `500ms`
 
-Points serveurs vus dans les notes 1.22 officielles:
-
-- `1.22.0-pre.4`: réduction du coût CPU sur décompactage de chunks, création de paquets et autres traitements, annoncé comme bénéfique surtout aux serveurs multijoueur.
-- `1.22.0-pre.4`: corrections de pics de lag lors du craft et du handbook.
-- `1.22.0-pre.5`: correction d’un bug où l’annonce publique du serveur pouvait envoyer plusieurs requêtes dupliquées au masterserver.
-- `1.22.0-rc.7`: journalisation supplémentaire quand le serveur n’arrive pas à sauvegarder, et nouvel intervalle de retry d’autosave à 2000 ms au lieu de 500 ms.
-
-Profil de migration recommandé pour plus tard:
+Recommended future validation profile:
 
 ```bash
 DOTNET_RUNTIME_TAG=10.0-bookworm-slim \
@@ -148,40 +173,40 @@ VS_FORCE_REINSTALL=true \
 docker compose up -d --build
 ```
 
-Pour une validation sans risque, utiliser un autre répertoire de persistance ou une autre copie de `storage/`.
+For safe validation, use a separate persistent directory or a separate copy of `storage/`.
 
-## Mise à jour du serveur
+## Updating the server
 
-Redémarrage normal sans changement de version:
+Normal restart without changing the installed version:
 
 ```bash
 docker compose up -d
 ```
 
-Commande de réinstallation explicite:
+Explicit reinstall:
 
 ```bash
 VS_FORCE_REINSTALL=true docker compose up -d
 ```
 
-Commande de bascule explicite vers une autre version:
+Explicit switch to another version:
 
 ```bash
 VS_VERSION=1.21.6 VS_FORCE_REINSTALL=true docker compose up -d
 ```
 
-Commande de bascule explicite vers une URL officielle spécifique:
+Explicit switch to a specific official archive URL:
 
 ```bash
 VS_DOWNLOAD_URL="https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.21.6.tar.gz" VS_FORCE_REINSTALL=true docker compose up -d
 ```
 
-## Réseau
+## Networking
 
-Le guide officiel ouvre `42420/tcp` et `42420/udp`. Le `compose.yaml` publie les deux protocoles et suit automatiquement `VS_PORT`.
+The official guide opens `42420/tcp` and `42420/udp`. The default `compose.yaml` publishes both protocols and follows `VS_PORT`.
 
-## GitHub
+## Publishing
 
-Le workflow `.github/workflows/docker-publish.yml` construit l’image en `linux/amd64` et la publie sur `ghcr.io/<owner>/<repo>` et, si `DOCKERHUB_NAMESPACE` et `DOCKERHUB_TOKEN` sont définis dans les secrets GitHub Actions, sur Docker Hub aussi, sur chaque push vers `main` et sur les tags `v*`.
+The workflow `.github/workflows/docker-publish.yml` builds the image for `linux/amd64` and publishes it to `ghcr.io/<owner>/<repo>`. If both `DOCKERHUB_NAMESPACE` and `DOCKERHUB_TOKEN` are defined in GitHub Actions secrets, it also publishes to Docker Hub on every push to `main` and every `v*` tag.
 
-Cette image GitHub ne contient pas les binaires Vintage Story. Le téléchargement reste effectué au runtime, côté utilisateur.
+This published image still does not contain the game binaries. The Vintage Story server archive is downloaded at runtime by design.
