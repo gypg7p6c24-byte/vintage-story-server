@@ -67,29 +67,22 @@ For a remote server that should only pull a published image and never build loca
 ```yaml
 services:
   vintagestory:
-    image: your-dockerhub-namespace/vintage-story-server:latest
-    pull_policy: always
+    image: pyrr0/vintage-story-server:latest
     container_name: vintagestory-server
     restart: unless-stopped
     stop_grace_period: 45s
-    stdin_open: true
-    tty: true
     environment:
       PUID: 1000
       PGID: 1000
       VS_VERSION: 1.21.6
-      VS_FORCE_REINSTALL: "false"
       VS_SERVER_NAME: Vintage Story Docker Server
-      VS_SERVER_LANGUAGE: en
-      VS_PORT: 42420
-      VS_MAX_CLIENTS: 8
+      VS_MAX_CLIENTS: 16
       VS_ADVERTISE_SERVER: "false"
       VS_VERIFY_PLAYER_AUTH: "true"
       VS_PASS_TIME_WHEN_EMPTY: "false"
       VS_ALLOW_PVP: "true"
       VS_ALLOW_FIRE_SPREAD: "true"
       VS_ALLOW_FALLING_BLOCKS: "true"
-      VS_WORLD_NAME: Vintage Story Docker World
     ports:
       - "42420:42420/tcp"
       - "42420:42420/udp"
@@ -103,6 +96,8 @@ Update flow on the remote host:
 docker compose pull
 docker compose up -d
 ```
+
+This does not auto-upgrade the installed Vintage Story server binaries by itself. The container image may be updated, but the game server already present in `storage/server` stays pinned unless you explicitly force a reinstall.
 
 ## Main environment variables
 
@@ -133,6 +128,14 @@ On first startup, the container:
 6. restarts the server in the foreground
 
 On an already initialized environment, the container strictly reuses the existing contents of `storage/server`. A changed version in the environment does nothing unless `VS_FORCE_REINSTALL=true` is explicitly set.
+
+`VS_FORCE_REINSTALL=true` exists for explicit operational cases only:
+
+- upgrade the installed game server version on purpose
+- reinstall the server files cleanly after changing `VS_VERSION` or `VS_DOWNLOAD_URL`
+- recover from a broken or incomplete installation in `storage/server`
+
+It is intentionally not part of the simple deployment example, because normal operation should keep the installed game server pinned.
 
 ## Version policy
 
