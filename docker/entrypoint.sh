@@ -175,6 +175,28 @@ append_bool_setting() {
   jq_filter+=" | ${jq_path} = \$${arg_name}"
 }
 
+append_whitelist_mode_setting() {
+  local raw_value="${VS_WHITELIST_MODE:-}"
+  local normalized
+
+  [[ -n "$raw_value" ]] || return 0
+
+  normalized="$(lower "$raw_value")"
+  case "$normalized" in
+    off|on|default)
+      jq_args+=(--arg whitelist_mode "$normalized")
+      jq_filter+=' | .WhitelistMode = $whitelist_mode'
+      ;;
+    0|1|2)
+      jq_args+=(--argjson whitelist_mode "$normalized")
+      jq_filter+=' | .WhitelistMode = $whitelist_mode'
+      ;;
+    *)
+      die "VS_WHITELIST_MODE must be one of: off, on, default, 0, 1, 2; got '$raw_value'"
+      ;;
+  esac
+}
+
 configure_server() {
   local config_path="${VS_DATA_PATH}/serverconfig.json"
   [[ -f "$config_path" ]] || die "Missing ${config_path}"
@@ -208,6 +230,7 @@ configure_server() {
   append_bool_setting VS_ALLOW_PVP '.AllowPvP' 'allow_pvp'
   append_bool_setting VS_ALLOW_FIRE_SPREAD '.AllowFireSpread' 'allow_fire_spread'
   append_bool_setting VS_ALLOW_FALLING_BLOCKS '.AllowFallingBlocks' 'allow_falling_blocks'
+  append_whitelist_mode_setting
 
   local tmp_config
   tmp_config="$(mktemp)"

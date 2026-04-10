@@ -99,6 +99,16 @@ docker compose up -d
 
 This does not auto-upgrade the installed Vintage Story server binaries by itself. The container image may be updated, but the game server already present in `storage/server` stays pinned unless you explicitly force a reinstall.
 
+For a public server protected by a password and without any post-deployment console command, set these values in the environment:
+
+```yaml
+VS_ADVERTISE_SERVER: "true"
+VS_PASSWORD: "change-me"
+VS_WHITELIST_MODE: "off"
+```
+
+`VS_ADVERTISE_SERVER` publishes the server to the master server list. `VS_PASSWORD` protects access. `VS_WHITELIST_MODE=off` disables the dedicated-server default whitelist mode introduced in `1.20`.
+
 ## Main environment variables
 
 - `VS_DOWNLOAD_URL`: preferred option. Paste the official Linux server download URL copied from the Vintage Story account page.
@@ -110,6 +120,7 @@ This does not auto-upgrade the installed Vintage Story server binaries by itself
 - `VS_PORT`: internal listening port and published Docker port.
 - `VS_MAX_CLIENTS`: maximum number of clients.
 - `VS_ADVERTISE_SERVER`: whether the server should be listed publicly.
+- `VS_WHITELIST_MODE`: whitelist behavior for dedicated servers. Supported values: `off`, `on`, `default`, `0`, `1`, `2`. For a public password-protected server, use `off`.
 - `VS_VERIFY_PLAYER_AUTH`: whether Vintage Story account authentication is enforced.
 - `VS_PASSWORD`: optional server password.
 - `VS_WORLD_NAME`: world name when creating a fresh world.
