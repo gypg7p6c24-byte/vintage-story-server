@@ -1,0 +1,41 @@
+services:
+  vintagestory:
+    build:
+      context: .
+      args:
+        DOTNET_RUNTIME_TAG: ${DOTNET_RUNTIME_TAG:-8.0-bookworm-slim}
+    image: vintage-story-server:local
+    container_name: vintagestory-server
+    restart: unless-stopped
+    stop_grace_period: 45s
+    stdin_open: true
+    tty: true
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      VS_DOWNLOAD_URL: ${VS_DOWNLOAD_URL:-}
+      VS_VERSION: ${VS_VERSION:-}
+      VS_SERVER_NAME: ${VS_SERVER_NAME:-Vintage Story Docker Server}
+      VS_SERVER_DESCRIPTION: ${VS_SERVER_DESCRIPTION:-}
+      VS_WELCOME_MESSAGE: ${VS_WELCOME_MESSAGE:-Welcome {0}, may you survive well and prosper}
+      VS_SERVER_LANGUAGE: ${VS_SERVER_LANGUAGE:-en}
+      VS_PORT: ${VS_PORT:-42420}
+      VS_MAX_CLIENTS: ${VS_MAX_CLIENTS:-8}
+      VS_ADVERTISE_SERVER: ${VS_ADVERTISE_SERVER:-false}
+      VS_VERIFY_PLAYER_AUTH: ${VS_VERIFY_PLAYER_AUTH:-true}
+      VS_PASS_TIME_WHEN_EMPTY: ${VS_PASS_TIME_WHEN_EMPTY:-false}
+      VS_ALLOW_PVP: ${VS_ALLOW_PVP:-true}
+      VS_ALLOW_FIRE_SPREAD: ${VS_ALLOW_FIRE_SPREAD:-true}
+      VS_ALLOW_FALLING_BLOCKS: ${VS_ALLOW_FALLING_BLOCKS:-true}
+      VS_WORLD_NAME: ${VS_WORLD_NAME:-Vintage Story Docker World}
+      VS_PASSWORD: ${VS_PASSWORD:-}
+      VS_BIND_IP: ${VS_BIND_IP:-}
+      VS_SAVE_FILE: ${VS_SAVE_FILE:-}
+      VS_FORCE_REINSTALL: ${VS_FORCE_REINSTALL:-false}
+      VS_BOOTSTRAP_TIMEOUT: ${VS_BOOTSTRAP_TIMEOUT:-60}
+      VS_SERVER_ARGS: ${VS_SERVER_ARGS:-}
+    ports:
+      - "${VS_PORT:-42420}:${VS_PORT:-42420}/tcp"
+      - "${VS_PORT:-42420}:${VS_PORT:-42420}/udp"
+    volumes:
+      - ./storage:/var/vintagestory
