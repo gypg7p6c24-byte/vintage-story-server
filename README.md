@@ -1,6 +1,6 @@
 # Vintage Story Server Docker
 
-Image Docker générique pour exécuter un serveur Vintage Story sur Linux `amd64`, avec téléchargement de l’archive officielle au runtime, bootstrap automatique du `serverconfig.json` et publication possible sur GitHub Container Registry.
+Image Docker générique pour exécuter un serveur Vintage Story sur Linux `amd64`, avec téléchargement de l’archive officielle au runtime, bootstrap automatique du `serverconfig.json` et publication possible sur GitHub Container Registry et Docker Hub.
 
 ## Choix techniques
 
@@ -58,6 +58,25 @@ docker attach vintagestory-server
 
 ```text
 Ctrl-p puis Ctrl-q
+```
+
+## Déploiement depuis Docker Hub
+
+Pour un serveur distant qui ne doit pas reconstruire l’image localement:
+
+1. Copier `.env.dockerhub.example` vers `.env`
+2. Remplacer `VS_IMAGE` par votre image Docker Hub
+3. Lancer:
+
+```bash
+docker compose -f compose.dockerhub.yaml up -d
+```
+
+Mise à jour de l’image publiée:
+
+```bash
+docker compose -f compose.dockerhub.yaml pull
+docker compose -f compose.dockerhub.yaml up -d
 ```
 
 ## Variables principales
@@ -163,6 +182,6 @@ Le guide officiel ouvre `42420/tcp` et `42420/udp`. Le `compose.yaml` publie les
 
 ## GitHub
 
-Le workflow `.github/workflows/docker-publish.yml` construit l’image en `linux/amd64` et la publie sur `ghcr.io/<owner>/<repo>` sur chaque push vers `main` et sur les tags `v*`.
+Le workflow `.github/workflows/docker-publish.yml` construit l’image en `linux/amd64` et la publie sur `ghcr.io/<owner>/<repo>` et, si `DOCKERHUB_NAMESPACE` et `DOCKERHUB_TOKEN` sont définis dans les secrets GitHub Actions, sur Docker Hub aussi, sur chaque push vers `main` et sur les tags `v*`.
 
 Cette image GitHub ne contient pas les binaires Vintage Story. Le téléchargement reste effectué au runtime, côté utilisateur.
