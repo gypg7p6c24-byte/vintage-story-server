@@ -221,6 +221,12 @@ The official guide opens `42420/tcp` and `42420/udp`. The default `compose.yaml`
 
 ## Publishing
 
-The workflow `.github/workflows/docker-publish.yml` builds the image for `linux/amd64` and publishes it to `ghcr.io/<owner>/<repo>`. If both `DOCKERHUB_NAMESPACE` and `DOCKERHUB_TOKEN` are defined in GitHub Actions secrets, it also publishes to Docker Hub on every push to `main` and every `v*` tag.
+The workflow `.github/workflows/docker-publish.yml` builds the image for `linux/amd64` and publishes it to `ghcr.io/<owner>/<repo>`. If both `DOCKERHUB_NAMESPACE` and `DOCKERHUB_TOKEN` are defined in GitHub Actions secrets, it also publishes to Docker Hub with the following tag mapping:
+
+- `main` branch -> `latest`
+- `dev` branch -> `dev`
+- Git tags matching `v*` -> matching container tags
+
+Old tags already present on Docker Hub are not deleted automatically by the workflow. They must be cleaned up manually if you want a stricter tag set.
 
 This published image still does not contain the game binaries. The Vintage Story server archive is downloaded at runtime by design.
