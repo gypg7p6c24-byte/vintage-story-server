@@ -1,6 +1,4 @@
-ARG DOTNET_RUNTIME_TAG=8.0-bookworm-slim
-
-FROM mcr.microsoft.com/dotnet/runtime:${DOTNET_RUNTIME_TAG}
+FROM debian:12-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PUID=1000 \
@@ -19,6 +17,13 @@ RUN apt-get update \
         procps \
         tar \
         tini \
+    && curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && rm -f /tmp/packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        dotnet-runtime-8.0 \
+        dotnet-runtime-10.0 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 vintagestory \
     && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/vintagestory --shell /usr/sbin/nologin vintagestory \
