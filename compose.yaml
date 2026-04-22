@@ -2,8 +2,6 @@ services:
   vintagestory:
     build:
       context: .
-      args:
-        DOTNET_RUNTIME_TAG: ${DOTNET_RUNTIME_TAG:-8.0-bookworm-slim}
     image: vintage-story-server:local
     container_name: vintagestory-server
     restart: unless-stopped
@@ -32,7 +30,6 @@ services:
       VS_PASSWORD: ${VS_PASSWORD:-}
       VS_BIND_IP: ${VS_BIND_IP:-}
       VS_SAVE_FILE: ${VS_SAVE_FILE:-}
-      VS_FORCE_REINSTALL: ${VS_FORCE_REINSTALL:-false}
       VS_BOOTSTRAP_TIMEOUT: ${VS_BOOTSTRAP_TIMEOUT:-60}
       VS_SERVER_ARGS: ${VS_SERVER_ARGS:-}
     ports:

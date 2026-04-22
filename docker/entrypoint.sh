@@ -70,10 +70,13 @@ prepare_runtime_user() {
     "${VS_DATA_PATH}/Logs" \
     "${VS_DATA_PATH}/Mods" \
     "${VS_DATA_PATH}/Saves"
+}
+
+switch_to_runtime_user() {
+  [[ "$(id -u)" -eq 0 ]] || return 0
 
   chown -R "${VS_USER}:${VS_USER}" "${VS_ROOT}" "/home/${VS_USER}"
-
-  exec gosu "${VS_USER}:${VS_USER}" "$0" "$@"
+  exec env VS_RUNTIME_USER_READY=1 gosu "${VS_USER}:${VS_USER}" "$0" run "$@"
 }
 
 resolve_download_url() {
@@ -91,6 +94,10 @@ resolve_download_url() {
   printf 'https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_%s.tar.gz\n' "$version"
 }
 
+has_explicit_source_request() {
+  [[ -n "${VS_DOWNLOAD_URL:-}" || -n "${VS_VERSION:-}" ]]
+}
+
 install_server() {
   mkdir -p "${VS_INSTALL_PATH}" "${VS_DATA_PATH}" "${VS_DATA_PATH}/Logs" "${VS_DATA_PATH}/Mods" "${VS_DATA_PATH}/Saves"
 
@@ -99,25 +106,22 @@ install_server() {
   marker="${VS_INSTALL_PATH}/.install-source"
 
   if [[ -x "${VS_INSTALL_PATH}/VintagestoryServer" ]]; then
-    if [[ "${VS_FORCE_REINSTALL:-false}" == "true" ]]; then
-      log "VS_FORCE_REINSTALL=true, reinstalling server from ${download_url}"
-    else
-      if [[ -f "$marker" ]]; then
-        local installed_source
-        installed_source="$(cat "$marker")"
-        if [[ "$installed_source" != "$download_url" ]]; then
-          log "Requested source differs from installed source. Keeping existing install: ${installed_source}"
-          log "Set VS_FORCE_REINSTALL=true to switch to ${download_url}"
-          return 0
-        fi
-
+    if [[ -f "$marker" ]]; then
+      local installed_source
+      installed_source="$(cat "$marker")"
+      if [[ "$installed_source" == "$download_url" ]]; then
         log "Vintage Story server already installed from ${download_url}"
         return 0
       fi
 
-      log "Vintage Story server already present with unknown source. Keeping existing install."
-      log "Set VS_FORCE_REINSTALL=true to reinstall from ${download_url}"
-      return 0
+      log "Requested source differs from installed source. Reinstalling from ${download_url}"
+    else
+      if ! has_explicit_source_request; then
+        log "Vintage Story server already present with unknown source. Keeping existing install."
+        return 0
+      fi
+
+      log "Vintage Story server already present with unknown source. Reinstalling from explicitly requested source ${download_url}"
     fi
   fi
 
@@ -287,8 +291,6 @@ run_server() {
 }
 
 main() {
-  prepare_runtime_user "$@"
-
   if [[ "${1:-run}" != "run" ]]; then
     exec "$@"
   fi
@@ -301,7 +303,17 @@ main() {
   fi
   server_args+=("$@")
 
-  install_server
+  prepare_runtime_user
+
+  if [[ "$(id -u)" -eq 0 && "${VS_RUNTIME_USER_READY:-0}" != "1" ]]; then
+    install_server
+    switch_to_runtime_user "${server_args[@]}"
+  fi
+
+  if [[ "${VS_RUNTIME_USER_READY:-0}" != "1" ]]; then
+    install_server
+  fi
+
   bootstrap_config "${server_args[@]}"
   run_server "${server_args[@]}"
 }
